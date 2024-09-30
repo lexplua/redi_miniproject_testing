@@ -62,19 +62,28 @@
     Mock Settings File Fixture:
         A fixture to create and mock a settings.json file with predefined data for testing reading and writing functionality.
 """
-import os
 import pathlib
+from collections.abc import Iterable
+from json import JSONDecodeError
 from unittest.mock import patch
 
 import pytest
 
-from miniproject import SettingsManager, SettingKey, get_settings_path
+from miniproject import SettingsManager, SettingKey
 
 mock_input_dirs_json = {"input_dirs": ["input/dir1", "input/dir2"]}
 
 mock_input_dirs = [pathlib.Path("./input/dir1"), pathlib.Path("./input/dir2")]
 
+mock_input_dirs_none = [None, None]
+
 mock_names = ["Gena", "Markus"]
+
+
+malformed_json_data = '''{
+    "name": "John",
+    "age": 30,
+}'''
 
 
 @pytest.fixture
@@ -90,9 +99,30 @@ def test_initial_settings(settings_manager):
     assert settings_manager.read_config() == mock_input_dirs_json
 
 
-def test_options(settings_manager):
-    settings_manager.set_option(SettingKey.INPUT_DIRS.NAME.value, [str(p) for p in mock_names])
-    assert settings_manager.get_option(SettingKey.INPUT_DIRS.NAME.value) == mock_names
+def test_initial_settings_none(settings_manager):
+    with (pytest.raises(TypeError)):
+        assert settings_manager.initial_settings(None)
+
+
+@pytest.mark.parametrize(
+    "elements, expected",
+    [
+        (["Gena", "Markus"], ["Gena", "Markus"]),
+        (["Markus"], ["Markus"]),
+        ("Markus", "Markus"),
+        ("NonExistingOption", None),
+        (None, None)
+    ]
+)
+def test_options(settings_manager, elements, expected):
+    if isinstance(elements, Iterable) and not isinstance(elements, str):
+        settings_manager.set_option(SettingKey.INPUT_DIRS.NAME.value, [str(p) for p in elements])
+    else:
+        settings_manager.set_option(SettingKey.INPUT_DIRS.NAME.value, elements)
+    if elements == "NonExistingOption":
+        assert settings_manager.get_option(elements) == expected
+    else:
+        assert settings_manager.get_option(SettingKey.INPUT_DIRS.NAME.value) == expected
 
 
 def test_files_path(settings_manager):
@@ -106,6 +136,29 @@ def test_result_path(settings_manager):
     assert settings_manager.result_path == pathlib.Path("./output/results")
 
 
+def test_paths_none(settings_manager):
+    settings_manager.set_option(SettingKey.INPUT_DIRS.NAME.value, [str(p) for p in mock_names])
+    print(settings_manager.read_config())
+    print(settings_manager.result_path)
+    assert settings_manager.files_path == []
+    assert settings_manager.result_path == pathlib.Path(".")
+
+
 def test_store_config(settings_manager):
     settings_manager.store_config(mock_input_dirs_json)
     assert settings_manager.read_config() == mock_input_dirs_json
+
+
+def test_file_is_not_created(settings_manager):
+    with (pytest.raises(FileNotFoundError)):
+        settings_manager.read_config()
+
+
+def test_malformed_json_data(settings_manager):
+    if not settings_manager.settings_path.parent.exists():
+        settings_manager.settings_path.parent.mkdir(exist_ok=True)
+    with open(settings_manager.settings_path, "w") as settings_file:
+        settings_file.write(malformed_json_data)
+    with (pytest.raises(JSONDecodeError)):
+        settings_manager.read_config()
+

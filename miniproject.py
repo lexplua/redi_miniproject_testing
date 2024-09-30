@@ -22,7 +22,7 @@ class SettingsManager:
 
     @property
     def files_path(self) -> List[pathlib.Path]:
-        return [pathlib.Path(path) for path in self.get_option("input_dirs")]
+        return [pathlib.Path(path) for path in self.get_option("input_dirs") or []]
 
     @property
     def result_path(self) -> pathlib.Path:
