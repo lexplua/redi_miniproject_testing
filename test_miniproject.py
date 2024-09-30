@@ -62,3 +62,50 @@
     Mock Settings File Fixture:
         A fixture to create and mock a settings.json file with predefined data for testing reading and writing functionality.
 """
+import os
+import pathlib
+from unittest.mock import patch
+
+import pytest
+
+from miniproject import SettingsManager, SettingKey, get_settings_path
+
+mock_input_dirs_json = {"input_dirs": ["input/dir1", "input/dir2"]}
+
+mock_input_dirs = [pathlib.Path("./input/dir1"), pathlib.Path("./input/dir2")]
+
+mock_names = ["Gena", "Markus"]
+
+
+@pytest.fixture
+def settings_manager(tmp_path):
+    mock_settings_path = tmp_path / "settings.json"
+
+    with patch('miniproject.get_settings_path', return_value=mock_settings_path):
+        yield SettingsManager("test")
+
+
+def test_initial_settings(settings_manager):
+    settings_manager.initial_settings(mock_input_dirs)
+    assert settings_manager.read_config() == mock_input_dirs_json
+
+
+def test_options(settings_manager):
+    settings_manager.set_option(SettingKey.INPUT_DIRS.NAME.value, [str(p) for p in mock_names])
+    assert settings_manager.get_option(SettingKey.INPUT_DIRS.NAME.value) == mock_names
+
+
+def test_files_path(settings_manager):
+    settings_manager.initial_settings(mock_input_dirs)
+    assert settings_manager.files_path == mock_input_dirs
+
+
+def test_result_path(settings_manager):
+    result_dir = "./output/results"
+    settings_manager.set_option(SettingKey.RESULT_DIR.value, result_dir)
+    assert settings_manager.result_path == pathlib.Path("./output/results")
+
+
+def test_store_config(settings_manager):
+    settings_manager.store_config(mock_input_dirs_json)
+    assert settings_manager.read_config() == mock_input_dirs_json
